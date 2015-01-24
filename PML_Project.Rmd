@@ -1,0 +1,105 @@
+---
+output: html_document
+---
+
+# Practical Machine Learning Project
+#### Ryan
+#### January 19, 2015
+
+## Objective
+
+The purpose of this project is to build machine learning algorithms to predict the correct execution of the specified exercise or the 4 different types of execution mistakes using data gathered by accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+Once the final model is built, the predictive model will be evaluated with 20 test cases. 
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.  More information is available from the website here: http://groupware.les.inf.puc-rio.br/har. 
+
+## Download the proeject files
+```{r}
+url1="http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+url2="http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(url=url1, destfile="pml-training.csv")
+download.file(url=url2, destfile="pml-testing.csv")
+```
+
+## Packages used for this project
+```{r}
+library(caret) # v6.0-41
+library(randomForest) # v4.6-10
+```
+
+## Load and preprocess the training data
+Please note the data contains blanks, "#DIV/0", as well as hardcoded "NA" values. 
+
+```{r results='hide'}
+training <- read.csv('pml-training.csv', na.strings=c("NA","#DIV/0!", ""))
+head(training)
+str(training)
+```
+
+Also, removed the first 7 fields that are ID type variables and tested to see if there are any varialbes with near-zero variances, but the data does not contain.
+
+```{r}
+training <-training[,colSums(is.na(training)) == 0]
+training <- training[,-c(1:7)]
+
+inNZV <- nearZeroVar(training, saveMetrics = TRUE)
+nzv.names <- inNZV[inNZV$nzv==1,] # No near-zear-variance variables identified
+```
+
+## Data Partition
+Created startified data partition for training (70%) and testing (30%) based on `classe` variable as target.
+
+```{r}
+inTrain <- createDataPartition(y=training$classe, p=0.7, list=FALSE)
+train.df <- training[inTrain,]
+test.df <- training[-inTrain,]
+```
+
+
+## Model Fit
+
+Fitted 'random forest' model using randomForest package. Used `ntree=500`, which specifies the number of trees to grow. This is default value but specifed for clarity purpose.
+ 
+I chose to use Random Forests as a model of choice given it performs bagging and ensemble learning and dose not require cross-validation or a separate test set to get an unbiased estimate of the test set error. It is estimated internally with multitude of trees being constructed using a different bootstrap sample from the original data. About one-third of the cases are left out of the bootstrap sample and not used in the construction of the kth tree."
+
+```{r}
+set.seed(312)
+modFit <- randomForest(train.df[,-53], train.df$classe, ntree=500) 
+confusionMatrix(predict(modFit, test.df), test.df$classe)
+```
+
+Based on the final model fit scored against the `test.df`, it's estimated that the model can accuately predict 99.5%, or out of sample error of 0.05%, which indicates a pretty strong model. 
+
+## Evaluation of 20 cases
+```{r}
+eval <- read.csv('pml-testing.csv', na.strings=c("NA","#DIV/0!", ""))
+eval <- eval[,names(train.df[,-53])]
+answers <- predict(modFit,newdata=eval)
+answers
+```
+
+### For Prediction Assignment Submission
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(answers)
+```
+
+### Reference
+1. Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+2. Leo Breiman and Adele Cutler, http://www.stat.berkeley.edu/~breiman/RandomForests/cc_home.htm#ooberr
+3. http://en.wikipedia.org/wiki/Random_forest
+
+-- END --
+
+
+
